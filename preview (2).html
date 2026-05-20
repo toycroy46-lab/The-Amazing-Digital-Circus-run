@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Emoji Run Ultimate FIXED</title>
+<style>
+body{
+margin:0;
+overflow:hidden;
+font-family:Arial;
+background:black;
+color:white;
+}
+#game{
+width:100vw;
+height:100vh;
+position:relative;
+overflow:hidden;
+background:linear-gradient(to bottom,#00c2ff,#000);
+display:none;
+}
+.road{
+position:absolute;
+left:50%;
+transform:translateX(-50%);
+width:80%;
+height:100%;
+background:#222;
+clip-path:polygon(30% 0%,70% 0%,100% 100%,0% 100%);
+}
+.lane{
+position:absolute;
+top:0;
+bottom:0;
+border-left:4px dashed rgba(255,255,255,.5);
+}
+.player{
+position:absolute;
+bottom:40px;
+width:140px;
+height:220px;
+border-radius:30px;
+background:linear-gradient(#00e5ff,#7b2cff);
+display:flex;
+flex-direction:column;
+align-items:center;
+justify-content:center;
+font-size:90px;
+border:4px solid white;
+transition:.2s;
+z-index:10;
+}
+.obstacle,.powerup{
+position:absolute;
+display:flex;
+align-items:center;
+justify-content:center;
+font-size:70px;
+border-radius:25px;
+transform:translateX(-50%);
+}
+.obstacle{
+width:120px;
+height:120px;
+background:black;
+border:4px solid red;
+box-shadow:0 0 30px red;
+}
+.powerup{
+width:130px;
+height:130px;
+background:#003344;
+border:5px solid cyan;
+box-shadow:0 0 40px cyan;
+animation:pulse .5s infinite alternate;
+z-index:9;
+}
+@keyframes pulse{
+from{scale:1;}
+to{scale:1.15;}
+}
+button{
+cursor:pointer;
+}
+</style>
+</head>
+<body>
+
+<div id="menu" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(#00c2ff,#000);">
+<h1 style="font-size:90px;">😀 EMOJI RUN 🚀</h1>
+<p style="font-size:30px;">Collect rockets to FLY!</p>
+<button onclick="startGame()" style="font-size:40px;padding:20px 50px;border:none;border-radius:20px;background:cyan;font-weight:bold;">
+START
+</button>
+</div>
+
+<div id="game">
+
+<div class="road"></div>
+<div class="lane" style="left:33%;"></div>
+<div class="lane" style="left:66%;"></div>
+
+<div id="score" style="position:absolute;top:20px;right:20px;font-size:40px;font-weight:bold;z-index:20;">
+Score: 0
+</div>
+
+<div id="level" style="position:absolute;top:20px;left:20px;font-size:40px;font-weight:bold;color:yellow;z-index:20;">
+Level 1
+</div>
+
+<div id="flyText" style="display:none;position:absolute;top:90px;left:20px;font-size:35px;color:cyan;font-weight:bold;z-index:20;">
+🚀 FLY MODE ACTIVATED 🚀
+</div>
+
+<div id="player" class="player" style="left:50%;transform:translateX(-50%);">
+<div id="avatar">😎</div>
+<div style="font-size:24px;">Runner</div>
+</div>
+
+<div id="dead" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,.85);z-index:100;flex-direction:column;align-items:center;justify-content:center;">
+<h1 style="font-size:100px;color:red;">GAME OVER 💀</h1>
+
+<button onclick="restartGame()" style="font-size:40px;padding:20px 50px;border:none;border-radius:20px;background:cyan;font-weight:bold;">
+REPLAY
+</button>
+</div>
+
+</div>
+
+<script>
+const game=document.getElementById("game");
+const menu=document.getElementById("menu");
+const player=document.getElementById("player");
+const avatar=document.getElementById("avatar");
+const scoreText=document.getElementById("score");
+const levelText=document.getElementById("level");
+const deadScreen=document.getElementById("dead");
+const flyText=document.getElementById("flyText");
+
+let lane=1;
+let score=0;
+let level=1;
+let speed=12;
+let dead=false;
+let jumping=false;
+let flying=false;
+let obstacles=[];
+let powers=[];
+
+let gameInterval;
+let spawnInterval;
+let powerInterval;
+
+const lanes=["18%","50%","82%"];
+const bad=["💣","🔥","😈","☠️","👹"];
+
+function sound(freq,time){
+const ctx=new(window.AudioContext||window.webkitAudioContext)();
+const osc=ctx.createOscillator();
+const gain=ctx.createGain();
+osc.connect(gain);
+gain.connect(ctx.destination);
+osc.frequency.value=freq;
+gain.gain.value=.05;
+osc.start();
+setTimeout(()=>{
+osc.stop();
+ctx.close();
+},time);
+}
+
+function music(){
+setInterval(()=>{
+if(!dead){
+sound(220,120);
+setTimeout(()=>sound(330,120),140);
+}
+},1000);
+}
+
+function startGame(){
+menu.style.display="none";
+game.style.display="block";
+
+music();
+
+spawnInterval=setInterval(spawnObstacle,900);
+powerInterval=setInterval(spawnPower,5000);
+
+gameInterval=setInterval(updateGame,40);
+}
+
+function restartGame(){
+location.reload();
+}
+
+document.addEventListener("keydown",(e)=>{
+
+if(dead)return;
+
+if(e.key==="ArrowLeft"){
+lane=Math.max(0,lane-1);
+}
+
+if(e.key==="ArrowRight"){
+lane=Math.min(2,lane+1);
+}
+
+if((e.key==="ArrowUp"||e.key===" ")&&!jumping&&!flying){
+
+jumping=true;
+sound(700,100);
+
+player.style.bottom="220px";
+
+setTimeout(()=>{
+jumping=false;
+player.style.bottom="40px";
+},700);
+}
+
+player.style.left=lanes[lane];
+});
+
+function spawnObstacle(){
+
+if(dead)return;
+
+const o=document.createElement("div");
+o.className="obstacle";
+o.innerHTML=bad[Math.floor(Math.random()*bad.length)];
+o.style.left=lanes[Math.floor(Math.random()*3)];
+o.style.top="-120px";
+
+game.appendChild(o);
+
+obstacles.push({
+el:o,
+lane:o.style.left,
+y:-120
+});
+}
+
+function spawnPower(){
+
+if(dead)return;
+
+const p=document.createElement("div");
+p.className="powerup";
+p.innerHTML="🚀";
+p.style.left=lanes[Math.floor(Math.random()*3)];
+p.style.top="-130px";
+
+game.appendChild(p);
+
+powers.push({
+el:p,
+lane:p.style.left,
+y:-130
+});
+}
+
+function activateFly(){
+
+flying=true;
+
+flyText.style.display="block";
+
+sound(1000,150);
+
+player.style.bottom="320px";
+player.style.boxShadow="0 0 100px cyan";
+
+setTimeout(()=>{
+flying=false;
+flyText.style.display="none";
+player.style.bottom="40px";
+player.style.boxShadow="0 0 40px white";
+},6000);
+}
+
+function die(){
+
+dead=true;
+
+clearInterval(gameInterval);
+clearInterval(spawnInterval);
+clearInterval(powerInterval);
+
+let frames=["😮","😧","😵","💀"];
+let i=0;
+
+const anim=setInterval(()=>{
+
+avatar.innerHTML=frames[i];
+
+player.style.transform=`translateX(-50%) rotate(${i*30}deg) scale(${1-(i*.2)})`;
+
+i++;
+
+if(i>=frames.length){
+clearInterval(anim);
+
+setTimeout(()=>{
+deadScreen.style.display="flex";
+},500);
+}
+
+},180);
+}
+
+function nextLevel(){
+level++;
+speed+=2;
+
+levelText.innerHTML="Level "+level;
+
+sound(900,150);
+}
+
+function updateGame(){
+
+if(dead)return;
+
+score++;
+scoreText.innerHTML="Score: "+score;
+
+if(score%500===0){
+nextLevel();
+}
+
+obstacles.forEach((o)=>{
+
+o.y+=speed;
+o.el.style.top=o.y+"px";
+
+if(o.y>520&&o.y<700&&o.lane===lanes[lane]&&!jumping&&!flying){
+die();
+}
+
+});
+
+powers.forEach((p)=>{
+
+p.y+=speed;
+p.el.style.top=p.y+"px";
+
+if(p.y>520&&p.y<700&&p.lane===lanes[lane]){
+
+p.el.remove();
+
+activateFly();
+}
+
+});
+
+}
+</script>
+
+</body>
+</html>
